@@ -288,7 +288,7 @@ class DBManager {
     }
 
     fun addInstruction(instruction: Instruction) {
-        println(" -- Storing instruction for ${instruction.machine.name} (${instruction.machine.id}): ${instruction.procedure} with ${instruction.ingredients}.")
+        println(" -- Storing instruction ${instruction.procedure} ${instruction.ingredients} for ${instruction.machine.name} (ID: ${instruction.machine.id}).")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "INSERT INTO $INSTRUCTIONS_TABLE_NAME ( $ORDER_ID, $PRODUCT_NAME, $MACHINE_ID, $MACHINE_PROCEDURE, " +
@@ -301,7 +301,7 @@ class DBManager {
             insertStatement.setInt(3, instruction.machine.id)
             insertStatement.setString(4, instruction.procedure.name)
             insertStatement.setString(5, Ingredient.serialize(instruction.ingredients))
-            insertStatement.setInt(6, instruction.duration)
+            insertStatement.setInt(6, instruction.product.recipe.getDurationInSec())
 
             val affectedRows = insertStatement.executeUpdate();
             if (affectedRows != 1) {
@@ -365,12 +365,12 @@ class DBManager {
         try {
             val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "SELECT $MACHINES_TABLE_NAME.$MACHINE_ID, $MACHINES_TABLE_NAME.$MACHINE_NAME, " +
-                        "$MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_PROCEDURE " +
+                        "$MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_PROCEDURE, $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL " +
                         "FROM $MACHINES_TABLE_NAME, $MACHINE_PROCEDURES_TABLE_NAME " +
                         "WHERE $MACHINES_TABLE_NAME.$MACHINE_ID = $MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_ID AND " +
                         "$MACHINES_TABLE_NAME.$MACHINE_STATUS = ? AND " +
                         "$MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_PROCEDURE = ? " +
-                        "ORDER BY $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL DESC"
+                        "ORDER BY $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL ASC"
             )
             selectStatement.setString(1, MachineStatus.WORKING.name)
             selectStatement.setString(2, procedure.name)
@@ -383,9 +383,10 @@ class DBManager {
                 val machineId = resultSet.getInt(1)
                 if (prevId != -1 && prevId != machineId) break
                 val machineName = resultSet.getString(2)
-                machine = Machine(machineId, machineName, procedures)
                 val procedureString = resultSet.getString(3)
                 procedures.add(Procedure.valueOf(procedureString))
+                val occupiedUntil = resultSet.getTimestamp(4)
+                machine = Machine(machineId, machineName, procedures, occupiedUntil)
                 prevId = machineId
             }
             return machine
@@ -405,6 +406,47 @@ class DBManager {
             updateStatement.executeUpdate();
         } catch (e: SQLException) {
             throw handleError("Order status could not be updated.", e);
+        }
+    }
+
+    /**
+     * Provides information on the current scheduling efficiency by returning each machines occupation.
+     */
+    fun fetchMachines(): List<Machine> {
+        try {
+            val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
+                "SELECT $MACHINES_TABLE_NAME.$MACHINE_ID, $MACHINES_TABLE_NAME.$MACHINE_NAME, $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL," +
+                        "$MACHINES_TABLE_NAME.$MACHINE_STATUS, $MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_PROCEDURE " +
+                        "FROM $MACHINES_TABLE_NAME, $MACHINE_PROCEDURES_TABLE_NAME " +
+                        "WHERE $MACHINES_TABLE_NAME.$MACHINE_ID = $MACHINE_PROCEDURES_TABLE_NAME.$MACHINE_ID " +
+                        "ORDER BY $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL DESC"
+            )
+
+            val resultSet = selectStatement.executeQuery();
+            var prevId = -1
+            val machines = mutableListOf<Machine>()
+            var procedures = mutableListOf<Procedure>()
+            var machineId: Int
+
+            while (resultSet.next()) {
+                machineId = resultSet.getInt(1)
+                if (prevId != machineId) procedures = mutableListOf()
+
+                val machineName = resultSet.getString(2)
+                val occupiedUntil = resultSet.getTimestamp(3)
+                val status = MachineStatus.valueOf(resultSet.getString(4))
+                val procedureString = resultSet.getString(5)
+                procedures.add(Procedure.valueOf(procedureString))
+
+                if (prevId != machineId) {
+                    machines.add(Machine(machineId, machineName, procedures, occupiedUntil, status))
+                }
+                prevId = machineId
+            }
+            return machines
+
+        } catch (e: SQLException) {
+            throw handleError("Failed to fetch machine for procedure.", e);
         }
     }
 

@@ -1,3 +1,4 @@
+import RecipeStep.Companion.secondsToMillis
 import java.sql.Timestamp
 import kotlin.random.Random
 
@@ -7,6 +8,9 @@ data class Order(
     var status: OrderStatus = OrderStatus.WAITING
 ) {
     var priority: Int = products.sumOf { it.priority }
+    var estimatedTimeShipping: Timestamp =
+        Timestamp(System.currentTimeMillis() + products.sumOf { product -> product.recipe.steps.sumOf { it.durationInSec } }
+            .secondsToMillis())
 
     companion object {
         fun getRandomDummyOrder(): Order {
@@ -49,8 +53,8 @@ data class Product(val name: String, val recipe: Recipe, var priority: Int = 1) 
                         listOf(
                             RecipeStep(Procedure.BAKE, Ingredient.BREAD, 820),
                             RecipeStep(Procedure.NOP, Ingredient.TOMATO, 0),
-                            RecipeStep(Procedure.FRY, Ingredient.STEAK, 0),
-                            RecipeStep(Procedure.SCREAM_AT, Ingredient.SALAD, 300),
+                            RecipeStep(Procedure.FRY, Ingredient.STEAK, 700),
+                            RecipeStep(Procedure.SCREAM_AT, Ingredient.SALAD, 1200),
                         )
                     ), 5
                 ),
@@ -84,12 +88,12 @@ data class Machine(
     var id: Int,
     val name: String,
     val procedures: List<Procedure>,
-    var occupiedUntil: Timestamp = Timestamp(System.currentTimeMillis()),
+    var occupiedUntil: Timestamp = Timestamp(0),
     val status: MachineStatus = MachineStatus.WORKING
 ) {
     companion object {
         fun getDummyMachine(): Machine {
-            val procedures = List(Random.nextInt(1, 5)) {
+            val procedures = List(Random.nextInt(1, 6)) {
                 Procedure.getRandom()
             }
             return Machine(
@@ -101,18 +105,16 @@ data class Machine(
             )
         }
 
-        fun getDummyMachines(): List<Machine> = List(Random.nextInt(7, 12)) { getDummyMachine() }
+        fun getDummyMachines(): List<Machine> = listOf(
+            *(List(Random.nextInt(5, 10)) { getDummyMachine() }.toTypedArray()),
+            Machine(-1, "Cute Frying-Pan", listOf(Procedure.FRY, Procedure.CUDDLE_WITH)),
+            Machine(-1, "Aggressive Oven", listOf(Procedure.SCREAM_AT, Procedure.THROW_ON_FLOOR, Procedure.BAKE)),
+        )
     }
 }
 
 enum class MachineStatus {
     WORKING, BROKEN;
-
-    companion object {
-        fun getRandom(): MachineStatus {
-            return values().random()
-        }
-    }
 }
 
 
@@ -133,12 +135,15 @@ data class Instruction(
     val machine: Machine,
     val procedure: Procedure,
     val ingredients: List<Ingredient>,
-    val duration: Int
 )
 
 data class Recipe(val steps: List<RecipeStep>) {
     fun serialize(): String {
         return steps.joinToString(separator = ",") { it.serialize() }
+    }
+
+    fun getDurationInSec(): Int {
+        return steps.sumOf { it.durationInSec }
     }
 
     companion object {
@@ -148,12 +153,16 @@ data class Recipe(val steps: List<RecipeStep>) {
     }
 }
 
-data class RecipeStep(val procedure: Procedure = Procedure.NOP, val ingredients: List<Ingredient>, val duration: Int) {
+data class RecipeStep(
+    val procedure: Procedure = Procedure.NOP,
+    val ingredients: List<Ingredient>,
+    val durationInSec: Int
+) {
     constructor(procedure: Procedure = Procedure.NOP, ingredient: Ingredient, duration: Int) :
             this(procedure, listOf(ingredient), duration)
 
     fun serialize(): String {
-        return "$procedure:${ingredients.joinToString(separator = "-")}:$duration"
+        return "$procedure:${ingredients.joinToString(separator = "-")}:$durationInSec"
     }
 
     companion object {
@@ -164,6 +173,10 @@ data class RecipeStep(val procedure: Procedure = Procedure.NOP, val ingredients:
                 strings[1].split("-".toRegex()).map { Ingredient.valueOf(it) }.toList(),
                 strings[2].toInt()
             )
+        }
+
+        fun Int.secondsToMillis(): Int {
+            return this * 1000
         }
     }
 }
