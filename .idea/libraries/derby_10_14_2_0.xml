@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="derby-10.14.2.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../PSW2_UE4_Demo/lib/derby-10.14.2.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
