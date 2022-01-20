@@ -41,17 +41,17 @@ class DBManager {
     private fun deleteTables() {
         println("Deleting old tables.")
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", INSTRUCTIONS_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $INSTRUCTIONS_TABLE_NAME") }
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", ORDER_ITEMS_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $ORDER_PRODUCTS_TABLE_NAME") }
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", ORDERS_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $ORDERS_TABLE_NAME") }
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", PRODUCTS_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $PRODUCTS_TABLE_NAME") }
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", MACHINE_PROCEDURES_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $MACHINE_PROCEDURES_TABLE_NAME") }
         dbConnection!!.createStatement()
-            .use { statement -> statement.execute(String.format("DROP TABLE %s", MACHINES_TABLE_NAME)) }
+            .use { statement -> statement.execute("DROP TABLE $MACHINES_TABLE_NAME") }
     }
 
     private fun createTables() {
@@ -60,91 +60,66 @@ class DBManager {
         println(" - Products")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s VARCHAR(255) PRIMARY KEY,"
-                            + "%s VARCHAR(255), "
-                            + "%s INT)",
-                    PRODUCTS_TABLE_NAME, PRODUCT_NAME, PRODUCT_RECIPE, PRODUCT_PRIORITY
-                )
+                "CREATE TABLE $PRODUCTS_TABLE_NAME ("
+                        + "$PRODUCT_NAME VARCHAR(255) PRIMARY KEY,"
+                        + "$PRODUCT_RECIPE VARCHAR(255), "
+                        + "$PRODUCT_PRIORITY INT)",
             )
         }
 
         println(" - Orders")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
-                            + "%s VARCHAR(255), "
-                            + "%s INT) ",
-                    ORDERS_TABLE_NAME, ORDER_ID, ORDER_STATUS, ORDER_PRIORITY
-                )
+                "CREATE TABLE $ORDERS_TABLE_NAME ("
+                        + "$ORDER_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
+                        + "$ORDER_STATUS VARCHAR(255), "
+                        + "$ORDER_PRIORITY INT) ",
             )
         }
 
-        println(" - Order items")
+        println(" - Order products")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s INT, "
-                            + "%s VARCHAR(255), "
-                            + "FOREIGN KEY ($PRODUCT_NAME) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_NAME), "
-                            + "FOREIGN KEY ($ORDER_ID) REFERENCES $ORDERS_TABLE_NAME($ORDER_ID))",
-                    ORDER_ITEMS_TABLE_NAME, ORDER_ID, PRODUCT_NAME
-                )
+                "CREATE TABLE $ORDER_PRODUCTS_TABLE_NAME ("
+                        + "$ORDER_ID INT, "
+                        + "$PRODUCT_NAME VARCHAR(255), "
+                        + "FOREIGN KEY ($PRODUCT_NAME) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_NAME), "
+                        + "FOREIGN KEY ($ORDER_ID) REFERENCES $ORDERS_TABLE_NAME($ORDER_ID))",
             )
         }
 
         println(" - Machines")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
-                            + "%s VARCHAR(255), "
-                            + "%s TIME, "
-                            + "%s VARCHAR(255))",
-                    MACHINES_TABLE_NAME, MACHINE_ID, MACHINE_NAME, MACHINE_OCCUPIED_UNTIL, MACHINE_STATUS
-                )
+                "CREATE TABLE $MACHINES_TABLE_NAME ("
+                        + "$MACHINE_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
+                        + "$MACHINE_NAME VARCHAR(255), "
+                        + "$MACHINE_OCCUPIED_UNTIL TIME, "
+                        + "$MACHINE_STATUS VARCHAR(255))",
             )
         }
 
         println(" - Machine Procedures")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s INT, "
-                            + "%s VARCHAR(255), "
-                            + "FOREIGN KEY ($MACHINE_ID) REFERENCES $MACHINES_TABLE_NAME($MACHINE_ID)) ",
-                    MACHINE_PROCEDURES_TABLE_NAME, MACHINE_ID, MACHINE_PROCEDURE
-                )
+                "CREATE TABLE $MACHINE_PROCEDURES_TABLE_NAME ("
+                        + "$MACHINE_ID INT, "
+                        + "$MACHINE_PROCEDURE VARCHAR(255), "
+                        + "FOREIGN KEY ($MACHINE_ID) REFERENCES $MACHINES_TABLE_NAME($MACHINE_ID)) ",
             )
         }
 
         println(" - Instructions")
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
-                String.format(
-                    "CREATE TABLE %s ("
-                            + "%s INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
-                            + "%s INT, "
-                            + "%s VARCHAR(255), "
-                            + "%s INT, "
-                            + "%s VARCHAR(255), "
-                            + "%s VARCHAR(255), "
-                            + "%s INT) ",
-                    INSTRUCTIONS_TABLE_NAME,
-                    INSTRUCTION_ID,
-                    ORDER_ID,
-                    PRODUCT_NAME,
-                    MACHINE_ID,
-                    MACHINE_PROCEDURE,
-                    INSTRUCTION_INGREDIENTS,
-                    INSTRUCTION_DURATION
-                )
+                "CREATE TABLE $INSTRUCTIONS_TABLE_NAME ("
+                        + "$INSTRUCTION_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
+                        + "$ORDER_ID INT, "
+                        + "$PRODUCT_NAME VARCHAR(255), "
+                        + "$MACHINE_ID INT, "
+                        + "$MACHINE_PROCEDURE VARCHAR(255), "
+                        + "$INSTRUCTION_INGREDIENTS VARCHAR(255), "
+                        + "$INSTRUCTION_DURATION INT) ",
             )
         }
 
@@ -222,7 +197,7 @@ class DBManager {
         if (verbose) println(" -- Adding product \"${product.name}\" to order $orderID.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $ORDER_ITEMS_TABLE_NAME ( $ORDER_ID, $PRODUCT_NAME ) VALUES(?,?)"
+                "INSERT INTO $ORDER_PRODUCTS_TABLE_NAME ( $ORDER_ID, $PRODUCT_NAME ) VALUES(?,?)"
             )
 
             insertStatement.setInt(1, orderID)
@@ -326,9 +301,9 @@ class DBManager {
                 "SELECT $ORDERS_TABLE_NAME.$ORDER_ID, $ORDERS_TABLE_NAME.$ORDER_PRIORITY, " +
                         "$PRODUCTS_TABLE_NAME.$PRODUCT_NAME, $PRODUCTS_TABLE_NAME.$PRODUCT_RECIPE, " +
                         "$PRODUCTS_TABLE_NAME.$PRODUCT_PRIORITY " +
-                        "FROM $ORDERS_TABLE_NAME, $ORDER_ITEMS_TABLE_NAME, $PRODUCTS_TABLE_NAME " +
-                        "WHERE $ORDERS_TABLE_NAME.$ORDER_ID = $ORDER_ITEMS_TABLE_NAME.$ORDER_ID AND " +
-                        "$ORDER_ITEMS_TABLE_NAME.$PRODUCT_NAME = $PRODUCTS_TABLE_NAME.$PRODUCT_NAME AND " +
+                        "FROM $ORDERS_TABLE_NAME, $ORDER_PRODUCTS_TABLE_NAME, $PRODUCTS_TABLE_NAME " +
+                        "WHERE $ORDERS_TABLE_NAME.$ORDER_ID = $ORDER_PRODUCTS_TABLE_NAME.$ORDER_ID AND " +
+                        "$ORDER_PRODUCTS_TABLE_NAME.$PRODUCT_NAME = $PRODUCTS_TABLE_NAME.$PRODUCT_NAME AND " +
                         "$ORDERS_TABLE_NAME.$ORDER_STATUS = ?" +
                         "ORDER BY $ORDERS_TABLE_NAME.$ORDER_PRIORITY DESC"
             )
@@ -502,7 +477,7 @@ class DBManager {
         private const val PRODUCT_PRIORITY = "PRIORITY"
         private const val PRODUCT_RECIPE = "RECIPE"
 
-        private const val ORDER_ITEMS_TABLE_NAME = "ORDER_ITEMS"
+        private const val ORDER_PRODUCTS_TABLE_NAME = "ORDER_PRODUCTS"
 
         private const val MACHINES_TABLE_NAME = "MACHINES"
         private const val MACHINE_ID = "MACHINE_ID"
