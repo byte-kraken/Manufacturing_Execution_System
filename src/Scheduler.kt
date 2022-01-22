@@ -1,4 +1,3 @@
-import RecipeStep.Companion.secondsToMillis
 import java.sql.SQLException
 import java.sql.Timestamp
 
@@ -42,36 +41,52 @@ fun main() {
 fun schedule(order: Order, db: DBManager): Boolean {
     println("\nScheduling order ${order.id} (Prio: ${order.priority}) with the following products: ${order.products.map { it.name }}")
 
+    // tracks the time the last procedure is completed = the order is completed
     var latestScheduledEndOfProcedure = Timestamp(0)
+    // tracks the instructions needed to fulfill the order
+    val instructions: MutableList<Instruction> = mutableListOf()
 
-    var instruction: Instruction
+    // generating instructions for machines
     order.products.forEach { product ->
+
         println(" - Analyzing recipe for ${product.name}")
+        db.startTransaction()
         product.recipe.steps.forEach { recipeStep ->
             val machine = db.fetchMachine(recipeStep.procedure) ?: run {
                 println(" ## No working machine for ${recipeStep.procedure} in ${product.name} was found, cancelling order.")
-                // it would probably make sense to remove previous instructions in this case
+                db.rollbackTransaction()
                 return false
             }
+
+            // calculating and setting new machine occupation
             val laterStartOfNewProcedure = maxOf(machine.occupiedUntil.time, System.currentTimeMillis())
             machine.occupiedUntil = Timestamp(laterStartOfNewProcedure + recipeStep.durationInSec.secondsToMillis())
             db.updateMachineOccupation(machine.id, machine.occupiedUntil)
-            val prev = latestScheduledEndOfProcedure
+
+            // calculating new earliest time the order can be finished
             latestScheduledEndOfProcedure =
                 Timestamp(maxOf(latestScheduledEndOfProcedure.time, machine.occupiedUntil.time))
 
-            instruction = Instruction(
+            // creating new instruction
+            val instruction = Instruction(
                 -1,
                 order,
                 product,
                 machine,
                 recipeStep.procedure,
-                recipeStep.ingredients
+                recipeStep.ingredients,
+                recipeStep.durationInSec
             )
-            db.addInstruction(instruction)
+            instructions.add(instruction)
         }
     }
+    db.commitTransaction()
+
     order.estimatedTimeShipping = latestScheduledEndOfProcedure
+
+    // writing instructions to database
+    println(" - All procedures can be executed")
+    instructions.forEach { db.addInstruction(it) }
     return true
 }
 
