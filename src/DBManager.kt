@@ -96,7 +96,9 @@ class DBManager {
                         + "$MACHINE_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
                         + "$MACHINE_NAME VARCHAR(255), "
                         + "$MACHINE_OCCUPIED_UNTIL TIME, "
-                        + "$MACHINE_STATUS VARCHAR(255))",
+                        + "$MACHINE_STATUS VARCHAR(255),"
+                        + "$MACHINE_PATH VARCHAR(255),"
+                        + "$MACHINE_WARRANTY DATE)",
             )
         }
 
@@ -400,9 +402,6 @@ class DBManager {
         }
     }
 
-    /**
-     * Provides information on the current scheduling efficiency by returning each machines occupation.
-     */
     fun fetchMachines(): List<Machine> {
         try {
             val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
@@ -516,6 +515,8 @@ class DBManager {
         private const val MACHINE_NAME = "NAME"
         private const val MACHINE_OCCUPIED_UNTIL = "OCCUPIED_UNTIL"
         private const val MACHINE_STATUS = "STATUS"
+        private const val MACHINE_PATH = "ACCESS_PATH" // needed for shopfloor
+        private const val MACHINE_WARRANTY = "WARRANTY" // needed for shopfloor
 
         private const val MACHINE_PROCEDURES_TABLE_NAME = "MACHINE_PROCEDURES"
         private const val MACHINE_PROCEDURE = "MACHINE_PROCEDURE"
