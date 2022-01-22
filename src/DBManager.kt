@@ -61,7 +61,8 @@ class DBManager {
         dbConnection!!.createStatement().use { statement ->
             statement.execute(
                 "CREATE TABLE $PRODUCTS_TABLE_NAME ("
-                        + "$PRODUCT_NAME VARCHAR(255) PRIMARY KEY,"
+                        + "$PRODUCT_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
+                        + "$PRODUCT_NAME VARCHAR(255), "
                         + "$PRODUCT_RECIPE VARCHAR(255), "
                         + "$PRODUCT_PRIORITY INT)",
             )
@@ -82,8 +83,8 @@ class DBManager {
             statement.execute(
                 "CREATE TABLE $ORDER_PRODUCTS_TABLE_NAME ("
                         + "$ORDER_ID INT, "
-                        + "$PRODUCT_NAME VARCHAR(255), "
-                        + "FOREIGN KEY ($PRODUCT_NAME) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_NAME), "
+                        + "$PRODUCT_ID INT, "
+                        + "FOREIGN KEY ($PRODUCT_ID) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_ID), "
                         + "FOREIGN KEY ($ORDER_ID) REFERENCES $ORDERS_TABLE_NAME($ORDER_ID))",
             )
         }
@@ -115,7 +116,7 @@ class DBManager {
                 "CREATE TABLE $INSTRUCTIONS_TABLE_NAME ("
                         + "$INSTRUCTION_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
                         + "$ORDER_ID INT, "
-                        + "$PRODUCT_NAME VARCHAR(255), "
+                        + "$PRODUCT_ID INT, "
                         + "$MACHINE_ID INT, "
                         + "$MACHINE_PROCEDURE VARCHAR(255), "
                         + "$INSTRUCTION_INGREDIENTS VARCHAR(255), "
@@ -150,7 +151,8 @@ class DBManager {
         println(" - Adding product \"${product.name}\" to database.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $PRODUCTS_TABLE_NAME ($PRODUCT_NAME, $PRODUCT_RECIPE, $PRODUCT_PRIORITY) VALUES(?,?,?)"
+                "INSERT INTO $PRODUCTS_TABLE_NAME ($PRODUCT_NAME, $PRODUCT_RECIPE, $PRODUCT_PRIORITY) VALUES(?,?,?)",
+                Statement.RETURN_GENERATED_KEYS
             )
             insertStatement.setString(1, product.name)
             insertStatement.setString(2, product.recipe.serialize())
@@ -160,12 +162,16 @@ class DBManager {
             if (affectedRows != 1) {
                 throw handleError("Failed to add product ${product.name} to database.")
             }
+
+            val generatedKeys: ResultSet = insertStatement.generatedKeys
+            generatedKeys.next()
+            product.id = generatedKeys.getInt(1)
         } catch (e: SQLException) {
             throw handleError("Failed to add product ${product.name} to database.", e)
         }
     }
 
-    fun addOrder(order: Order) {
+    fun addOrder(order: Order): Order {
         if (verbose) println(" - Adding order to database.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
@@ -174,6 +180,7 @@ class DBManager {
             )
 
             insertStatement.setString(1, order.status.name)
+            order.calculateInitialPriority()
             insertStatement.setInt(2, order.priority)
 
             val affectedRows = insertStatement.executeUpdate()
@@ -191,17 +198,18 @@ class DBManager {
             throw handleError("Failed to add order to database.", e)
         }
         if (verbose) println(" - Order has ID ${order.id} and initial priority ${order.priority}.")
+        return order
     }
 
     private fun addOrderItem(orderID: Int, product: Product) {
         if (verbose) println(" -- Adding product \"${product.name}\" to order $orderID.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $ORDER_PRODUCTS_TABLE_NAME ( $ORDER_ID, $PRODUCT_NAME ) VALUES(?,?)"
+                "INSERT INTO $ORDER_PRODUCTS_TABLE_NAME ( $ORDER_ID, $PRODUCT_ID ) VALUES(?,?)"
             )
 
             insertStatement.setInt(1, orderID)
-            insertStatement.setString(2, product.name)
+            insertStatement.setInt(2, product.id)
 
             val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
@@ -213,7 +221,7 @@ class DBManager {
         }
     }
 
-    private fun addMachine(machine: Machine) {
+    fun addMachine(machine: Machine) {
         println(" - Adding machine to database.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
@@ -266,13 +274,13 @@ class DBManager {
         println(" -- Storing instruction ${instruction.procedure} ${instruction.ingredients} for ${instruction.machine.name} (ID: ${instruction.machine.id}).")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $INSTRUCTIONS_TABLE_NAME ( $ORDER_ID, $PRODUCT_NAME, $MACHINE_ID, $MACHINE_PROCEDURE, " +
+                "INSERT INTO $INSTRUCTIONS_TABLE_NAME ( $ORDER_ID, $PRODUCT_ID, $MACHINE_ID, $MACHINE_PROCEDURE, " +
                         "$INSTRUCTION_INGREDIENTS, $INSTRUCTION_DURATION ) VALUES(?,?,?,?,?,?)",
                 Statement.RETURN_GENERATED_KEYS
             )
 
             insertStatement.setInt(1, instruction.order.id)
-            insertStatement.setString(2, instruction.product.name)
+            insertStatement.setInt(2, instruction.product.id)
             insertStatement.setInt(3, instruction.machine.id)
             insertStatement.setString(4, instruction.procedure.name)
             insertStatement.setString(5, Ingredient.serialize(instruction.ingredients))
@@ -299,11 +307,11 @@ class DBManager {
         try {
             val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "SELECT $ORDERS_TABLE_NAME.$ORDER_ID, $ORDERS_TABLE_NAME.$ORDER_PRIORITY, " +
-                        "$PRODUCTS_TABLE_NAME.$PRODUCT_NAME, $PRODUCTS_TABLE_NAME.$PRODUCT_RECIPE, " +
-                        "$PRODUCTS_TABLE_NAME.$PRODUCT_PRIORITY " +
+                        "$PRODUCTS_TABLE_NAME.$PRODUCT_ID, $PRODUCTS_TABLE_NAME.$PRODUCT_NAME, " +
+                        "$PRODUCTS_TABLE_NAME.$PRODUCT_RECIPE, $PRODUCTS_TABLE_NAME.$PRODUCT_PRIORITY " +
                         "FROM $ORDERS_TABLE_NAME, $ORDER_PRODUCTS_TABLE_NAME, $PRODUCTS_TABLE_NAME " +
                         "WHERE $ORDERS_TABLE_NAME.$ORDER_ID = $ORDER_PRODUCTS_TABLE_NAME.$ORDER_ID AND " +
-                        "$ORDER_PRODUCTS_TABLE_NAME.$PRODUCT_NAME = $PRODUCTS_TABLE_NAME.$PRODUCT_NAME AND " +
+                        "$ORDER_PRODUCTS_TABLE_NAME.$PRODUCT_ID = $PRODUCTS_TABLE_NAME.$PRODUCT_ID AND " +
                         "$ORDERS_TABLE_NAME.$ORDER_STATUS = ?" +
                         "ORDER BY $ORDERS_TABLE_NAME.$ORDER_PRIORITY DESC"
             )
@@ -313,16 +321,21 @@ class DBManager {
             var prevId = -1
             var order: Order? = null
             val products = mutableListOf<Product>()
+            var newOrder = true
             while (resultSet.next()) {
                 val orderId = resultSet.getInt(1)
                 if (prevId != -1 && prevId != orderId) break
-                val orderPriority = resultSet.getInt(2)
-                order = Order(orderId, products)
-                order.priority = orderPriority
-                val productName = resultSet.getString(3)
-                val productRecipe = resultSet.getString(4)
-                val productPriority = resultSet.getInt(5)
-                products.add(Product(productName, Recipe.deserialize(productRecipe), productPriority))
+                if (newOrder) {
+                    val orderPriority = resultSet.getInt(2)
+                    order = Order(orderId, products)
+                    order.priority = orderPriority
+                    newOrder = false
+                }
+                val productID = resultSet.getInt(3)
+                val productName = resultSet.getString(4)
+                val productRecipe = resultSet.getString(5)
+                val productPriority = resultSet.getInt(6)
+                products.add(Product(productID, productName, Recipe.deserialize(productRecipe), productPriority))
                 prevId = orderId
             }
             order?.calculateMinimumTimeOfShipping()
@@ -489,6 +502,7 @@ class DBManager {
         private const val ORDER_STATUS = "STATUS"
 
         private const val PRODUCTS_TABLE_NAME = "PRODUCTS"
+        private const val PRODUCT_ID = "PRODUCT_ID"
         private const val PRODUCT_NAME = "PRODUCT_NAME"
         private const val PRODUCT_PRIORITY = "PRIORITY"
         private const val PRODUCT_RECIPE = "RECIPE"
