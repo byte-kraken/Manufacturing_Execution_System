@@ -1,3 +1,4 @@
+import Converter.Companion.secondsToMillis
 import java.sql.Timestamp
 import kotlin.random.Random
 
@@ -35,41 +36,50 @@ enum class OrderStatus {
     WAITING, SCHEDULED, NOT_DELIVERABLE;
 }
 
-data class Product(val name: String, val recipe: Recipe, var priority: Int = 1) {
+data class Product(var id: Int = -1, val name: String, val recipe: Recipe, var priority: Int = 1) {
 
     companion object {
+        val loveBurger = Product(
+            -1,
+            "Love Burger", Recipe(
+                listOf(
+                    RecipeStep(Procedure.BAKE, Ingredient.BREAD, 120),
+                    RecipeStep(Procedure.CUT, Ingredient.TOMATO, 20),
+                    RecipeStep(Procedure.FRY, Ingredient.VEGGIE_PATTY, 20),
+                    RecipeStep(Procedure.CUDDLE_WITH, Ingredient.SALAD, 300),
+                )
+            ), 10
+        )
+        val metalBurger = Product(
+            -1,
+            "Metal Burger", Recipe(
+                listOf(
+                    RecipeStep(Procedure.BAKE, Ingredient.BREAD, 820),
+                    RecipeStep(Procedure.NOP, Ingredient.TOMATO, 0),
+                    RecipeStep(Procedure.FRY, Ingredient.STEAK, 700),
+                    RecipeStep(Procedure.SCREAM_AT, Ingredient.SALAD, 1200),
+                )
+            ), 5
+        )
+        val surprisingProduct = getRandomDummyProduct("Surprising Sandwish")
+        val sandySandwish = getRandomDummyProduct("Sandy Sandwish")
+        val signatureSandwish = getRandomDummyProduct()
+
+
         fun getRandomDummyProduct(name: String = "Signature Sandwish"): Product {
             val steps = List(Random.nextInt(1, 5)) {
                 RecipeStep(Procedure.getRandom(), Ingredient.getRandom(), Random.nextInt(0, 1000))
             }
-            return Product(name, Recipe(steps), Random.nextInt(1, 20))
+            return Product(-1, name, Recipe(steps), Random.nextInt(1, 20))
         }
 
         fun getDummyProducts(): List<Product> {
             return listOf(
-                Product(
-                    "Love Burger", Recipe(
-                        listOf(
-                            RecipeStep(Procedure.BAKE, Ingredient.BREAD, 120),
-                            RecipeStep(Procedure.CUT, Ingredient.TOMATO, 20),
-                            RecipeStep(Procedure.FRY, Ingredient.VEGGIE_PATTY, 20),
-                            RecipeStep(Procedure.CUDDLE_WITH, Ingredient.SALAD, 300),
-                        )
-                    ), 10
-                ),
-                Product(
-                    "Metal Burger", Recipe(
-                        listOf(
-                            RecipeStep(Procedure.BAKE, Ingredient.BREAD, 820),
-                            RecipeStep(Procedure.NOP, Ingredient.TOMATO, 0),
-                            RecipeStep(Procedure.FRY, Ingredient.STEAK, 700),
-                            RecipeStep(Procedure.SCREAM_AT, Ingredient.SALAD, 1200),
-                        )
-                    ), 5
-                ),
-                getRandomDummyProduct("Surprising Sandwish"),
-                getRandomDummyProduct("Sandy Sandwish"),
-                getRandomDummyProduct()
+                loveBurger,
+                metalBurger,
+                surprisingProduct,
+                sandySandwish,
+                signatureSandwish
             )
         }
     }
@@ -183,7 +193,15 @@ data class RecipeStep(
     }
 }
 
-fun Int.secondsToMillis(): Long {
-    return (this * 1000).toLong()
+class Converter {
+    companion object {
+        fun Int.secondsToMillis(): Long {
+            return this.toLong() * 1000
+        }
+
+        fun Long.millisToSeconds(): Int {
+            return (this / 1000).toInt()
+        }
+    }
 }
 
