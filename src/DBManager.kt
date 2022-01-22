@@ -120,10 +120,12 @@ class DBManager {
                         + "$MACHINE_ID INT, "
                         + "$MACHINE_PROCEDURE VARCHAR(255), "
                         + "$INSTRUCTION_INGREDIENTS VARCHAR(255), "
-                        + "$INSTRUCTION_DURATION INT) ",
+                        + "$INSTRUCTION_DURATION INT, "
+                        + "FOREIGN KEY ($PRODUCT_ID) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_ID), "
+                        + "FOREIGN KEY ($ORDER_ID) REFERENCES $ORDERS_TABLE_NAME($ORDER_ID), "
+                        + "FOREIGN KEY ($MACHINE_ID) REFERENCES $MACHINES_TABLE_NAME($MACHINE_ID)) ",
             )
         }
-
     }
 
     fun populateTablesWithDummyData() {
