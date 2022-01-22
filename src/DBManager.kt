@@ -156,12 +156,12 @@ class DBManager {
             insertStatement.setString(2, product.recipe.serialize())
             insertStatement.setInt(3, product.priority)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add product ${product.name} to database.");
+                throw handleError("Failed to add product ${product.name} to database.")
             }
         } catch (e: SQLException) {
-            throw handleError("Failed to add product ${product.name} to database.", e);
+            throw handleError("Failed to add product ${product.name} to database.", e)
         }
     }
 
@@ -176,9 +176,9 @@ class DBManager {
             insertStatement.setString(1, order.status.name)
             insertStatement.setInt(2, order.priority)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add order to database.");
+                throw handleError("Failed to add order to database.")
             }
 
             // return created order ID (primary key)
@@ -188,7 +188,7 @@ class DBManager {
 
             order.products.forEach { addOrderItem(order.id, it) }
         } catch (e: SQLException) {
-            throw handleError("Failed to add order to database.", e);
+            throw handleError("Failed to add order to database.", e)
         }
         if (verbose) println(" - Order has ID ${order.id} and initial priority ${order.priority}.")
     }
@@ -203,13 +203,13 @@ class DBManager {
             insertStatement.setInt(1, orderID)
             insertStatement.setString(2, product.name)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add order_item to database.");
+                throw handleError("Failed to add order_item to database.")
             }
 
         } catch (e: SQLException) {
-            throw handleError("Failed to add order_item to database.", e);
+            throw handleError("Failed to add order_item to database.", e)
         }
     }
 
@@ -225,9 +225,9 @@ class DBManager {
             insertStatement.setTime(2, Time(machine.occupiedUntil.time))
             insertStatement.setString(3, machine.status.name)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add order to database.");
+                throw handleError("Failed to add order to database.")
             }
 
             // return created order ID (primary key)
@@ -237,7 +237,7 @@ class DBManager {
 
             machine.procedures.forEach { addMachineProcedure(machine.id, it) }
         } catch (e: SQLException) {
-            throw handleError("Failed to add order to database.", e);
+            throw handleError("Failed to add order to database.", e)
         }
         println(" - Machine ${machine.name} has ID ${machine.id} and is ${machine.status}.")
     }
@@ -252,13 +252,13 @@ class DBManager {
             insertStatement.setInt(1, machineID)
             insertStatement.setString(2, procedure.name)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add order_item to database.");
+                throw handleError("Failed to add order_item to database.")
             }
 
         } catch (e: SQLException) {
-            throw handleError("Failed to add order_item to database.", e);
+            throw handleError("Failed to add order_item to database.", e)
         }
     }
 
@@ -276,11 +276,11 @@ class DBManager {
             insertStatement.setInt(3, instruction.machine.id)
             insertStatement.setString(4, instruction.procedure.name)
             insertStatement.setString(5, Ingredient.serialize(instruction.ingredients))
-            insertStatement.setInt(6, instruction.product.recipe.getDurationInSec())
+            insertStatement.setInt(6, instruction.durationInSec)
 
-            val affectedRows = insertStatement.executeUpdate();
+            val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
-                throw handleError("Failed to add instruction to database.");
+                throw handleError("Failed to add instruction to database.")
             }
 
             val generatedKeys: ResultSet = insertStatement.generatedKeys
@@ -288,7 +288,7 @@ class DBManager {
             instruction.id = generatedKeys.getInt(1)
 
         } catch (e: SQLException) {
-            throw handleError("Failed to add instruction to database.", e);
+            throw handleError("Failed to add instruction to database.", e)
         }
     }
 
@@ -309,7 +309,7 @@ class DBManager {
             )
             selectStatement.setString(1, OrderStatus.WAITING.name)
 
-            val resultSet = selectStatement.executeQuery();
+            val resultSet = selectStatement.executeQuery()
             var prevId = -1
             var order: Order? = null
             val products = mutableListOf<Product>()
@@ -325,10 +325,11 @@ class DBManager {
                 products.add(Product(productName, Recipe.deserialize(productRecipe), productPriority))
                 prevId = orderId
             }
+            order?.calculateMinimumTimeOfShipping()
             return order
 
         } catch (e: SQLException) {
-            throw handleError("Failed to fetch order from database.", e);
+            throw handleError("Failed to fetch order from database.", e)
         }
     }
 
@@ -350,7 +351,7 @@ class DBManager {
             selectStatement.setString(1, MachineStatus.WORKING.name)
             selectStatement.setString(2, procedure.name)
 
-            val resultSet = selectStatement.executeQuery();
+            val resultSet = selectStatement.executeQuery()
             var prevId = -1
             var machine: Machine? = null
             val procedures = mutableListOf<Procedure>()
@@ -367,7 +368,7 @@ class DBManager {
             return machine
 
         } catch (e: SQLException) {
-            throw handleError("Failed to fetch machine for procedure.", e);
+            throw handleError("Failed to fetch machine for procedure.", e)
         }
     }
 
@@ -376,11 +377,11 @@ class DBManager {
             val updateStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "UPDATE $ORDERS_TABLE_NAME SET $ORDER_STATUS = ? WHERE $ORDER_ID = ?"
             )
-            updateStatement.setString(1, orderStatus.name);
-            updateStatement.setInt(2, orderID);
-            updateStatement.executeUpdate();
+            updateStatement.setString(1, orderStatus.name)
+            updateStatement.setInt(2, orderID)
+            updateStatement.executeUpdate()
         } catch (e: SQLException) {
-            throw handleError("Order status could not be updated.", e);
+            throw handleError("Order status could not be updated.", e)
         }
     }
 
@@ -397,7 +398,7 @@ class DBManager {
                         "ORDER BY $MACHINES_TABLE_NAME.$MACHINE_OCCUPIED_UNTIL DESC"
             )
 
-            val resultSet = selectStatement.executeQuery();
+            val resultSet = selectStatement.executeQuery()
             var prevId = -1
             val machines = mutableListOf<Machine>()
             var procedures = mutableListOf<Procedure>()
@@ -421,7 +422,7 @@ class DBManager {
             return machines
 
         } catch (e: SQLException) {
-            throw handleError("Failed to fetch machine for procedure.", e);
+            throw handleError("Failed to fetch machine for procedure.", e)
         }
     }
 
@@ -430,11 +431,11 @@ class DBManager {
             val updateStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "UPDATE $ORDERS_TABLE_NAME SET $ORDER_PRIORITY = $ORDER_PRIORITY + ? WHERE $ORDER_STATUS = ?"
             )
-            updateStatement.setInt(1, amount);
-            updateStatement.setString(2, OrderStatus.WAITING.name);
-            updateStatement.executeUpdate();
+            updateStatement.setInt(1, amount)
+            updateStatement.setString(2, OrderStatus.WAITING.name)
+            updateStatement.executeUpdate()
         } catch (e: SQLException) {
-            throw handleError("Order status could not be updated.", e);
+            throw handleError("Order status could not be updated.", e)
         }
     }
 
@@ -443,12 +444,27 @@ class DBManager {
             val updateStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "UPDATE $MACHINES_TABLE_NAME SET $MACHINE_OCCUPIED_UNTIL = ? WHERE $MACHINE_ID = ?"
             )
-            updateStatement.setTimestamp(1, timestamp);
-            updateStatement.setInt(2, machineId);
-            updateStatement.executeUpdate();
+            updateStatement.setTimestamp(1, timestamp)
+            updateStatement.setInt(2, machineId)
+            updateStatement.executeUpdate()
         } catch (e: SQLException) {
-            throw handleError("Machine occupation could not be updated.", e);
+            throw handleError("Machine occupation could not be updated.", e)
         }
+    }
+
+
+    fun startTransaction() {
+        dbConnection!!.autoCommit = false
+    }
+
+    fun commitTransaction() {
+        dbConnection!!.commit()
+        dbConnection!!.autoCommit = true
+    }
+
+    fun rollbackTransaction() {
+        dbConnection!!.rollback()
+        dbConnection!!.autoCommit = true
     }
 
     /**

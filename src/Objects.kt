@@ -1,4 +1,3 @@
-import RecipeStep.Companion.secondsToMillis
 import java.sql.Timestamp
 import kotlin.random.Random
 
@@ -7,10 +6,20 @@ data class Order(
     val products: List<Product>,
     var status: OrderStatus = OrderStatus.WAITING
 ) {
-    var priority: Int = products.sumOf { it.priority }
-    var estimatedTimeShipping: Timestamp =
-        Timestamp(System.currentTimeMillis() + products.sumOf { product -> product.recipe.steps.sumOf { it.durationInSec } }
-            .secondsToMillis())
+    var priority: Int = calculateInitialPriority()
+    var estimatedTimeShipping: Timestamp = calculateMinimumTimeOfShipping()
+
+    /** Assuming full parallelization is possible. */
+    fun calculateMinimumTimeOfShipping() =
+        if (products.isNotEmpty())
+            Timestamp(
+                System.currentTimeMillis() +
+                        products.maxOf { product -> product.recipe.steps.maxOf { it.durationInSec } }.secondsToMillis()
+            )
+        else Timestamp(System.currentTimeMillis())
+
+    /** More products should increase the priority. */
+    fun calculateInitialPriority() = products.sumOf { it.priority }
 
     companion object {
         fun getRandomDummyOrder(): Order {
@@ -135,15 +144,12 @@ data class Instruction(
     val machine: Machine,
     val procedure: Procedure,
     val ingredients: List<Ingredient>,
+    val durationInSec: Int,
 )
 
 data class Recipe(val steps: List<RecipeStep>) {
     fun serialize(): String {
         return steps.joinToString(separator = ",") { it.serialize() }
-    }
-
-    fun getDurationInSec(): Int {
-        return steps.sumOf { it.durationInSec }
     }
 
     companion object {
@@ -174,9 +180,10 @@ data class RecipeStep(
                 strings[2].toInt()
             )
         }
-
-        fun Int.secondsToMillis(): Int {
-            return this * 1000
-        }
     }
 }
+
+fun Int.secondsToMillis(): Long {
+    return (this * 1000).toLong()
+}
+
