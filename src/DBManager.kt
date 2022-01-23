@@ -179,13 +179,10 @@ class DBManager {
         if (verbose) println(" - Adding order to database.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $ORDERS_TABLE_NAME ( $ORDER_STATUS, $ORDER_PRIORITY ) VALUES(?,?)",
+                "INSERT INTO $ORDERS_TABLE_NAME ( $ORDER_STATUS) VALUES(?)",
                 Statement.RETURN_GENERATED_KEYS
             )
-
             insertStatement.setString(1, order.status.name)
-            order.calculateInitialPriority()
-            insertStatement.setInt(2, order.priority)
 
             val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
@@ -305,10 +302,68 @@ class DBManager {
     }
 
     /**
+     * _Should_ normally be procedurally triggered when an order is inserted, is called whenever an order is fetched instead.
+     * Looks for new orders in database put there by Webshop (marked by status PAID).
+     * Calculates their initial priority.
+     * Updates their status from PAID to WAITING.
+     * */
+    private fun calculateInitialPriority() {
+        try {
+            val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
+                "SELECT $ORDERS_TABLE_NAME.$ORDER_ID, $PRODUCTS_TABLE_NAME.$PRODUCT_PRIORITY " +
+                        "FROM $ORDERS_TABLE_NAME, $ORDER_PRODUCTS_TABLE_NAME, $PRODUCTS_TABLE_NAME " +
+                        "WHERE $ORDERS_TABLE_NAME.$ORDER_ID = $ORDER_PRODUCTS_TABLE_NAME.$ORDER_ID AND " +
+                        "$ORDER_PRODUCTS_TABLE_NAME.$PRODUCT_ID = $PRODUCTS_TABLE_NAME.$PRODUCT_ID AND " +
+                        "$ORDERS_TABLE_NAME.$ORDER_STATUS = ?"
+            )
+            selectStatement.setString(1, OrderStatus.PAID.name)
+
+            val resultSet = selectStatement.executeQuery()
+            var prevId = -1
+            var orderPriority = 0
+            while (resultSet.next()) {
+                if (prevId == -1) println("\nFound new order(s):")
+                val orderId = resultSet.getInt(1)
+                if (prevId != -1 && (prevId != orderId)) {
+                    updatePriority(prevId, orderPriority)
+                    orderPriority = 0
+                }
+                orderPriority += resultSet.getInt(2) // actual calculation of priority
+                // to keep this part a bit more lightweight, I decided against creating the whole order object to use its priority calculation
+                prevId = orderId
+            }
+            if (prevId != -1) updatePriority(prevId, orderPriority)
+
+        } catch (e: SQLException) {
+            throw handleError("Order priority could not be updated.", e)
+        }
+
+    }
+
+    private fun updatePriority(orderId: Int, orderPriority: Int) {
+        val updatePriorityStatement: PreparedStatement = dbConnection!!.prepareStatement(
+            "UPDATE $ORDERS_TABLE_NAME SET $ORDER_PRIORITY = ? WHERE $ORDER_ID = ?"
+        )
+        updatePriorityStatement.setInt(1, orderPriority)
+        updatePriorityStatement.setInt(2, orderId)
+        updatePriorityStatement.executeUpdate()
+
+        val updateStatusStatement: PreparedStatement = dbConnection!!.prepareStatement(
+            "UPDATE $ORDERS_TABLE_NAME SET $ORDER_STATUS = ? WHERE $ORDER_ID = ?"
+        )
+        updateStatusStatement.setString(1, OrderStatus.WAITING.name)
+        updateStatusStatement.setInt(2, orderId)
+        updateStatusStatement.executeUpdate()
+        println(" - Found order with ID: ${orderId}, assigned it initial priority: $orderPriority).")
+    }
+
+    /**
      * Fetches the next order with the highest priority and status WAITING.
      */
     fun fetchNextOrder(): Order? {
         try {
+            calculateInitialPriority() // ensures that all orders have right priority
+
             val selectStatement: PreparedStatement = dbConnection!!.prepareStatement(
                 "SELECT $ORDERS_TABLE_NAME.$ORDER_ID, $ORDERS_TABLE_NAME.$ORDER_PRIORITY, " +
                         "$PRODUCTS_TABLE_NAME.$PRODUCT_ID, $PRODUCTS_TABLE_NAME.$PRODUCT_NAME, " +
@@ -351,7 +406,7 @@ class DBManager {
     }
 
     /**
-     * Fetches all working machines implementing a procedure, sorted by the earliest time they can receive new instructions.
+     * Fetches all WORKing machines implementing a procedure, sorted by the earliest time they can receive new instructions.
      */
     fun fetchMachine(procedure: Procedure): Machine? {
         //println(" -- Fetching machine for procedure \"${procedure.name}\"")

@@ -5,7 +5,7 @@ import kotlin.random.Random
 data class Order(
     var id: Int = -1,
     val products: List<Product>,
-    var status: OrderStatus = OrderStatus.WAITING
+    var status: OrderStatus = OrderStatus.PAID
 ) {
     var priority: Int = calculateInitialPriority()
     var estimatedTimeShipping: Timestamp = calculateMinimumTimeOfShipping()
@@ -20,7 +20,7 @@ data class Order(
         else Timestamp(System.currentTimeMillis())
 
     /** More products should increase the priority. */
-    fun calculateInitialPriority() = products.sumOf { it.priority }
+    private fun calculateInitialPriority() = products.sumOf { it.priority }
 
     companion object {
         fun getRandomDummyOrder(): Order {
@@ -33,7 +33,7 @@ data class Order(
 }
 
 enum class OrderStatus {
-    WAITING, SCHEDULED, NOT_DELIVERABLE;
+    PAID, WAITING, SCHEDULED, NOT_DELIVERABLE;
 }
 
 data class Product(var id: Int = -1, val name: String, val recipe: Recipe, var priority: Int = 1) {
