@@ -101,6 +101,7 @@ class Scheduler {
             db.commitTransaction()
 
             order.estimatedTimeShipping = latestScheduledEndOfProcedure
+            db.updateEstimatedShippingTime(order.id, order.estimatedTimeShipping)
 
             // writing instructions to database
             println(" - All procedures can be executed")
@@ -113,7 +114,7 @@ class Scheduler {
             db.fetchMachines().forEach {
                 println(
                     "Machine \"${it.name}\" (ID: ${it.id}) - #${it.procedures.distinct().size} procedures: " +
-                            "${if (it.status == MachineStatus.BROKEN) it.status else it.occupiedUntil}"
+                            "${if (it.status != MachineStatus.WORKING) it.status else it.occupiedUntil}"
                 )
             }
             println("##################################")

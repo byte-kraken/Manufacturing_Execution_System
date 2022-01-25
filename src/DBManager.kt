@@ -16,12 +16,10 @@ class DBManager {
     }
 
     fun closeConnection() {
-        if (dbConnection == null) {
-            println("Connection was already closed.")
-        } else {
-            dbConnection!!.close()
+        dbConnection?.run {
+            close()
             println("Closed connection.")
-        }
+        } ?: println("Connection was already closed.")
     }
 
     fun initializeTables() {
@@ -63,6 +61,7 @@ class DBManager {
                 "CREATE TABLE $PRODUCTS_TABLE_NAME ("
                         + "$PRODUCT_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
                         + "$PRODUCT_NAME VARCHAR(255), "
+                        + "$PRODUCT_WEIGHT INT, "
                         + "$PRODUCT_RECIPE VARCHAR(255), "
                         + "$PRODUCT_PRIORITY INT)",
             )
@@ -74,7 +73,8 @@ class DBManager {
                 "CREATE TABLE $ORDERS_TABLE_NAME ("
                         + "$ORDER_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
                         + "$ORDER_STATUS VARCHAR(255), "
-                        + "$ORDER_PRIORITY INT) ",
+                        + "$ORDER_PRIORITY INT, "
+                        + "$ORDER_SHIPPING_TIME TIME) ",
             )
         }
 
@@ -179,10 +179,11 @@ class DBManager {
         if (verbose) println(" - Adding order to database.")
         try {
             val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-                "INSERT INTO $ORDERS_TABLE_NAME ( $ORDER_STATUS) VALUES(?)",
+                "INSERT INTO $ORDERS_TABLE_NAME ( $ORDER_STATUS, $ORDER_SHIPPING_TIME ) VALUES(?,?)",
                 Statement.RETURN_GENERATED_KEYS
             )
             insertStatement.setString(1, order.status.name)
+            insertStatement.setTimestamp(2, order.estimatedTimeShipping)
 
             val affectedRows = insertStatement.executeUpdate()
             if (affectedRows != 1) {
@@ -521,6 +522,19 @@ class DBManager {
         }
     }
 
+    fun updateEstimatedShippingTime(orderID: Int, shippingTime: Timestamp) {
+        try {
+            val updateStatement: PreparedStatement = dbConnection!!.prepareStatement(
+                "UPDATE $ORDERS_TABLE_NAME SET $ORDER_SHIPPING_TIME = ? WHERE $ORDER_ID = ?"
+            )
+            updateStatement.setTimestamp(1, shippingTime)
+            updateStatement.setInt(2, orderID)
+            updateStatement.executeUpdate()
+        } catch (e: SQLException) {
+            throw handleError("Shipping time could not be updated.", e)
+        }
+    }
+
 
     fun startTransaction() {
         dbConnection!!.autoCommit = false
@@ -554,14 +568,16 @@ class DBManager {
         // table names and their columns
         private const val ORDERS_TABLE_NAME = "ORDERS"
         private const val ORDER_ID = "ORDER_ID"
-        private const val ORDER_PRIORITY = "PRIORITY"
         private const val ORDER_STATUS = "STATUS"
+        private const val ORDER_PRIORITY = "PRIORITY"
+        private const val ORDER_SHIPPING_TIME = "ESTIMATED_SHIPPING_TIME"
 
         private const val PRODUCTS_TABLE_NAME = "PRODUCTS"
         private const val PRODUCT_ID = "PRODUCT_ID"
         private const val PRODUCT_NAME = "PRODUCT_NAME"
-        private const val PRODUCT_PRIORITY = "PRIORITY"
+        private const val PRODUCT_WEIGHT = "WEIGHT" // needed for webshop
         private const val PRODUCT_RECIPE = "RECIPE"
+        private const val PRODUCT_PRIORITY = "PRIORITY"
 
         private const val ORDER_PRODUCTS_TABLE_NAME = "ORDER_PRODUCTS"
 
